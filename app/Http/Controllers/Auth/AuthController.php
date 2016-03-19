@@ -7,6 +7,8 @@ use Validator;
 use App\Http\Controllers\Controller;
 use Illuminate\Foundation\Auth\ThrottlesLogins;
 use Illuminate\Foundation\Auth\AuthenticatesAndRegistersUsers;
+use Socialite;
+use Auth;
 
 class AuthController extends Controller
 {
@@ -67,6 +69,41 @@ class AuthController extends Controller
             'name' => $data['name'],
             'email' => $data['email'],
             'password' => bcrypt($data['password']),
+            'facebook_id' =>  $data['email'],
         ]);
+    }
+
+
+    //Facebook redirect
+    public function redirectToFacebook()
+    {
+        return Socialite::with('facebook')->redirect();
+    }
+
+    //Facebook call back method
+    public function getFacebookCallback()
+    {
+
+        $data = Socialite::with('facebook')->user();
+        $user = User::where('email', $data->email)->first();
+
+        if(!is_null($user)) {
+            Auth::login($user);
+            $user->name = $data->user['first_name'].' '.$data->user['last_name'];
+            $user->facebook_id = $data->id;
+            $user->save();
+        } else {
+            $user = User::where('facebook_id', $data->id)->first();
+            if(is_null($user)){
+                // Create a new user
+                $user = new User();
+                $user->name = $data->user['first_name'].' '.$data->user['last_name'];
+                $user->email = $data->email;
+                $user->save();
+            }
+
+            Auth::login($user);
+        }
+        return redirect('/')->with('success', 'Successfully logged in!');
     }
 }
